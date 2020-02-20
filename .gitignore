@@ -24,4 +24,5 @@ ipch
 *sdf
 /.vs/*
 *.onnx
-.vcxproj*
+*.vcxproj*
+packages
