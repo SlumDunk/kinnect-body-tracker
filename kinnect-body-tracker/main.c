@@ -17,6 +17,9 @@
 void print_body_information(k4abt_body_t body)
 {
     printf("Body ID: %u\n", body.id);
+    FILE* fp = NULL;
+    fopen_s(&fp,"D:/data/test.json", "w+");
+    fprintf(fp, "[");
     for (int i = 0; i < (int)K4ABT_JOINT_COUNT; i++)
     {
         k4a_float3_t position = body.skeleton.joints[i].position;
@@ -24,7 +27,14 @@ void print_body_information(k4abt_body_t body)
         k4abt_joint_confidence_level_t confidence_level = body.skeleton.joints[i].confidence_level;
         printf("Joint[%d]: Position[mm] ( %f, %f, %f ); Orientation ( %f, %f, %f, %f); Confidence Level (%d) \n",
             i, position.v[0], position.v[1], position.v[2], orientation.v[0], orientation.v[1], orientation.v[2], orientation.v[3], confidence_level);
+        //fprintf(fp, "This is testing for fprintf...\n");
+        fprintf(fp,"[ %f, %f, %f ]", position.v[0], position.v[1], position.v[2]);
+        if (i < (int)K4ABT_JOINT_COUNT-1) {
+            fprintf(fp, ",\n");
+        }
     }
+    fprintf(fp, "]");
+    fclose(fp);
 }
 
 void print_body_index_map_middle_line(k4a_image_t body_index_map)
