@@ -14,12 +14,10 @@
         exit(1);                                                                                         \
     }                                                                                                    \
 
-void print_body_information(k4abt_body_t body)
+void print_body_information(k4abt_body_t body, FILE * fp)
 {
-    printf("Body ID: %u\n", body.id);
-    FILE* fp = NULL;
-    fopen_s(&fp,"D:/data/test.json", "w+");
-    fprintf(fp, "[");
+
+
     for (int i = 0; i < (int)K4ABT_JOINT_COUNT; i++)
     {
         k4a_float3_t position = body.skeleton.joints[i].position;
@@ -28,13 +26,9 @@ void print_body_information(k4abt_body_t body)
         printf("Joint[%d]: Position[mm] ( %f, %f, %f ); Orientation ( %f, %f, %f, %f); Confidence Level (%d) \n",
             i, position.v[0], position.v[1], position.v[2], orientation.v[0], orientation.v[1], orientation.v[2], orientation.v[3], confidence_level);
         //fprintf(fp, "This is testing for fprintf...\n");
-        fprintf(fp,"[ %f, %f, %f ]", position.v[0], position.v[1], position.v[2]);
-        if (i < (int)K4ABT_JOINT_COUNT-1) {
-            fprintf(fp, ",\n");
-        }
+        fprintf(fp,"\"Joint_%d\":\"{\\\"position\\\":\\\"(%f, %f, %f)\\\",\\\"rotation\\\":\\\"(%f, %f, %f,%f)\\\"}\"", i,position.v[0], position.v[1], position.v[2], orientation.v[0], orientation.v[1], orientation.v[2], orientation.v[3]);      
+        fprintf(fp, ",");
     }
-    fprintf(fp, "]");
-    fclose(fp);
 }
 
 void print_body_index_map_middle_line(k4a_image_t body_index_map)
@@ -61,6 +55,7 @@ void print_body_index_map_middle_line(k4a_image_t body_index_map)
 
 int main()
 {
+    int frame_num = 10;
     k4a_device_configuration_t device_config = K4A_DEVICE_CONFIG_INIT_DISABLE_ALL;
     device_config.depth_mode = K4A_DEPTH_MODE_NFOV_UNBINNED;
 
@@ -77,13 +72,17 @@ int main()
     VERIFY(k4abt_tracker_create(&sensor_calibration, tracker_config, &tracker), "Body tracker initialization failed!");
 
     int frame_count = 0;
+    FILE* fp = NULL;
+    fopen_s(&fp, "D:/data/test.json", "w+");
+    fprintf(fp, "{\"list\":[");
     do
     {
         k4a_capture_t sensor_capture;
-        k4a_wait_result_t get_capture_result = k4a_device_get_capture(device, &sensor_capture, K4A_WAIT_INFINITE);
+        k4a_wait_result_t get_capture_result = k4a_device_get_capture(device, &sensor_capture, K4A_WAIT_INFINITE);        
+
         if (get_capture_result == K4A_WAIT_RESULT_SUCCEEDED)
         {
-            frame_count++;
+            frame_count++;          
 
             printf("Start processing frame %d\n", frame_count);
 
@@ -108,14 +107,24 @@ int main()
             {
                 uint32_t num_bodies = k4abt_frame_get_num_bodies(body_frame);
                 printf("%u bodies are detected!\n", num_bodies);
+           
+                fprintf(fp, "{");
 
                 for (uint32_t i = 0; i < num_bodies; i++)
                 {
+                    if (i > 0) {
+                        break;
+                    }
                     k4abt_body_t body;
                     VERIFY(k4abt_frame_get_body_skeleton(body_frame, i, &body.skeleton), "Get body from body frame failed!");
                     body.id = k4abt_frame_get_body_id(body_frame, i);
 
-                    print_body_information(body);
+                    print_body_information(body,fp);
+                }
+
+                fprintf(fp, "\"Sequence\":\"%d\"}",frame_count);
+                if (frame_count < frame_num) {
+                    fprintf(fp, ",");
                 }
 
                 k4a_image_t body_index_map = k4abt_frame_get_body_index_map(body_frame);
@@ -155,7 +164,9 @@ int main()
             break;
         }
 
-    } while (frame_count < 100);
+    } while (frame_count < frame_num);
+    fprintf(fp, "]}");
+    fclose(fp);
 
     printf("Finished body tracking processing!\n");
 
