@@ -5,7 +5,10 @@
 
 #include <k4a/k4a.h>
 #include <k4abt.h>
+using namespace std;
+#include <string>
 #include "main.h"
+#include "WebsocketClient.h"
 
 #define VERIFY(result, error)                                                                            \
     if(result != K4A_RESULT_SUCCEEDED)                                                                   \
@@ -14,21 +17,26 @@
         exit(1);                                                                                         \
     }                                                                                                    \
 
-void print_body_information(k4abt_body_t body, FILE * fp)
+string print_body_information(k4abt_body_t body /*, FILE * fp*/)
 {
 
-
+    string result = "";
     for (int i = 0; i < (int)K4ABT_JOINT_COUNT; i++)
     {
+        char buf[1024];
         k4a_float3_t position = body.skeleton.joints[i].position;
         k4a_quaternion_t orientation = body.skeleton.joints[i].orientation;
         k4abt_joint_confidence_level_t confidence_level = body.skeleton.joints[i].confidence_level;
         printf("Joint[%d]: Position[mm] ( %f, %f, %f ); Orientation ( %f, %f, %f, %f); Confidence Level (%d) \n",
-            i, position.v[0], position.v[1], position.v[2], orientation.v[0], orientation.v[1], orientation.v[2], orientation.v[3], confidence_level);
-        //fprintf(fp, "This is testing for fprintf...\n");
-        fprintf(fp,"\"Joint_%d\":\"{\\\"position\\\":\\\"(%f, %f, %f)\\\",\\\"rotation\\\":\\\"(%f, %f, %f,%f)\\\"}\"", i,position.v[0], position.v[1], position.v[2], orientation.v[0], orientation.v[1], orientation.v[2], orientation.v[3]);      
-        fprintf(fp, ",");
+            i, position.v[0], position.v[1], position.v[2], orientation.v[0], orientation.v[1], orientation.v[2], orientation.v[3], confidence_level);      
+        //printf(fp,"\"Joint_%d\":\"{\\\"position\\\":\\\"(%f, %f, %f)\\\",\\\"rotation\\\":\\\"(%f, %f, %f,%f)\\\"}\"", i,position.v[0], position.v[1], position.v[2], orientation.v[0], orientation.v[1], orientation.v[2], orientation.v[3]);
+        
+        printf(buf,"\"Joint_%d\":\"{\\\"position\\\":\\\"(%f, %f, %f)\\\",\\\"rotation\\\":\\\"(%f, %f, %f,%f)\\\"}\"", i,position.v[0], position.v[1], position.v[2], orientation.v[0], orientation.v[1], orientation.v[2], orientation.v[3]);
+        //fprintf(fp, ",");
+        result += buf;
+        result += ",";
     }
+    return result;
 }
 
 void print_body_index_map_middle_line(k4a_image_t body_index_map)
@@ -72,9 +80,14 @@ int main()
     VERIFY(k4abt_tracker_create(&sensor_calibration, tracker_config, &tracker), "Body tracker initialization failed!");
 
     int frame_count = 0;
-    FILE* fp = NULL;
-    fopen_s(&fp, "D:/data/test.json", "w+");
-    fprintf(fp, "{\"list\":[");
+    //FILE* fp = NULL;
+    //fopen_s(&fp, "D:/data/test.json", "w+");
+    string host = "127.0.0.1";
+    string port = "1234";
+    string url = "/";
+    WebsocketClient client = WebsocketClient(host, port, url);
+    client.openConnection();
+    string msg = "{\"list\":[";
     do
     {
         k4a_capture_t sensor_capture;
@@ -108,7 +121,8 @@ int main()
                 uint32_t num_bodies = k4abt_frame_get_num_bodies(body_frame);
                 printf("%u bodies are detected!\n", num_bodies);
            
-                fprintf(fp, "{");
+                //fprintf(fp, "{");
+                msg += "{";
 
                 for (uint32_t i = 0; i < num_bodies; i++)
                 {
@@ -119,12 +133,13 @@ int main()
                     VERIFY(k4abt_frame_get_body_skeleton(body_frame, i, &body.skeleton), "Get body from body frame failed!");
                     body.id = k4abt_frame_get_body_id(body_frame, i);
 
-                    print_body_information(body,fp);
+                    msg+=print_body_information(body);
                 }
-
-                fprintf(fp, "\"Sequence\":\"%d\"}",frame_count);
+                char buf[1024];
+                sprintf(buf, "\"Sequence\":\"%d\"}",frame_count);
+                msg += buf;
                 if (frame_count < frame_num) {
-                    fprintf(fp, ",");
+                    msg += ",";
                 }
 
                 k4a_image_t body_index_map = k4abt_frame_get_body_index_map(body_frame);
@@ -156,17 +171,23 @@ int main()
         {
             // It should never hit time out when K4A_WAIT_INFINITE is set.
             printf("Error! Get depth frame time out!\n");
-            break;
+            continue;
         }
         else
         {
             printf("Get depth capture returned error: %d\n", get_capture_result);
-            break;
+            continue;
         }
 
+        if (frame_count == frame_num) {
+            frame_count = 0;
+            msg += "]}";
+            client.sendMsg(msg);
+            msg.clear();
+        }
     } while (frame_count < frame_num);
-    fprintf(fp, "]}");
-    fclose(fp);
+   /* fprintf(fp, "]}");
+    fclose(fp);*/
 
     printf("Finished body tracking processing!\n");
 
@@ -174,6 +195,7 @@ int main()
     k4abt_tracker_destroy(tracker);
     k4a_device_stop_cameras(device);
     k4a_device_close(device);
+    client.closeConnection();
 
     return 0;
 }
