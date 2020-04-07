@@ -27,6 +27,11 @@ void WebsocketClient::openConnection() {
 	// Perform the websocket handshake
 	ws.handshake(host, url);
 
+	ws.auto_fragment(false);
+	ws.binary(true);
+	//set the buffer
+	ws.write_buffer_bytes(1024 * 1000);
+
 }
 
 void WebsocketClient::closeConnection() {
@@ -51,6 +56,10 @@ string WebsocketClient::receiveMsg() {
 
 void WebsocketClient::sendMsg(string msg) {
 	// Send the message
+	if (!ws.is_open()) {
+		openConnection();
+	}
 	ws.write(net::buffer(std::string(msg)));
-	string msg = receiveMsg();
+	string responseMsg = receiveMsg();
+	cout << responseMsg;
 }
