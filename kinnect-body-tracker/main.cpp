@@ -189,7 +189,7 @@ int main()
 		}
 
 		end = clock();
-		if (end - start >= 5000) {
+		if (end - start >= 1000) {
 			msg.erase(msg.end() - 1);
 			msg += "]}";	
 			string file_path = "D:/data/kinect/src/test";
