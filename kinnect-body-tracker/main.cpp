@@ -89,6 +89,7 @@ int main()
 	VERIFY(k4abt_tracker_create(&sensor_calibration, tracker_config, &tracker), "Body tracker initialization failed!");
 
 	int frame_count = 0;
+	int interval=500;
 
 	int sequence = 1;
 	string host = "127.0.0.1";
@@ -189,7 +190,7 @@ int main()
 		}
 
 		end = clock();
-		if (end - start >= 1000) {
+		if (end - start >= interval) {
 			msg.erase(msg.end() - 1);
 			msg += "]}";	
 			string file_path = "D:/data/kinect/src/test";
