@@ -5,7 +5,7 @@ this project use the Boost library to implements the networking function. So the
 
 right click the project to select the "manage nuget packages" to install the dependent libraries for kinect development.
 
-<img src="C:\Users\datavis\AppData\Roaming\Typora\typora-user-images\image-20200506100053755.png" alt="image-20200506100053755" style="zoom: 67%;" />
+<img src="https://github.com/SlumDunk/kinnect-body-tracker/blob/master/docs/denpendencies.PNG?raw=true" alt="image-20200506100053755" style="zoom: 67%;" />
 
 ## OS requirement
 Windows 10
