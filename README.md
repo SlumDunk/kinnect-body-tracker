@@ -9,3 +9,8 @@ right click the project to select the "manage nuget packages" to install the dep
 
 ## OS requirement
 Windows 10
+
+
+## tips
+In this project, everytime when we run the program, we will dump a file that records the position of every frame in a file named "frame"+currentTimeStamp.json under the path "D:\data\kinect\src\"+currentDate. when you get this file, you need to add the "]}" to make it
+as a valid json format file. And then you can import it into the AR_VR program.

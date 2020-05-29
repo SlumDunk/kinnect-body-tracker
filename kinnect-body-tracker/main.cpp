@@ -15,7 +15,8 @@ using namespace std;
 
 #include <fstream> 
 #include <iostream>
-
+#include <io.h>
+#include<direct.h>
 
 #define VERIFY(result, error)                                                                            \
     if(result != K4A_RESULT_SUCCEEDED)                                                                   \
@@ -34,8 +35,8 @@ string print_body_information(k4abt_body_t body /*, FILE * fp*/)
 		char buf[1024];
 		k4a_float3_t position = body.skeleton.joints[i].position;
 		k4a_quaternion_t orientation = body.skeleton.joints[i].orientation;
-		k4abt_joint_confidence_level_t confidence_level = body.skeleton.joints[i].confidence_level;		
-		int len = sprintf_s(buf, 1024, "\"Joint_%d\":\"{\\\"position\\\":\\\"(%f, %f, %f)\\\",\\\"rotation\\\":\\\"(%f, %f, %f,%f)\\\"}\"", i, position.v[0], position.v[1], position.v[2], orientation.v[0], orientation.v[1], orientation.v[2], orientation.v[3]);		
+		k4abt_joint_confidence_level_t confidence_level = body.skeleton.joints[i].confidence_level;
+		int len = sprintf_s(buf, 1024, "\"Joint_%d\":\"{\\\"position\\\":\\\"(%f, %f, %f)\\\",\\\"rotation\\\":\\\"(%f, %f, %f,%f)\\\"}\"", i, position.v[0], position.v[1], position.v[2], orientation.v[0], orientation.v[1], orientation.v[2], orientation.v[3]);
 		sum += len;
 		result += buf;
 		result += ",";
@@ -89,134 +90,167 @@ int main()
 	VERIFY(k4abt_tracker_create(&sensor_calibration, tracker_config, &tracker), "Body tracker initialization failed!");
 
 	int frame_count = 0;
-	int interval=500;
+	int interval = 10;
 
 	int sequence = 1;
 	string host = "127.0.0.1";
-	string port = "8080";
+	string port = "9005";
 	string url = "/";
 	//WebsocketClient client(host, port, url);
-	HttpClient client(host, port, url);	
-	string msg = "{\"list\":[";
+	HttpClient client(host, port, url);
+	string prefix = "{\"list\":[";
+	string postfix= "]}";
+	string msg = "";
+
 	clock_t start, end;
 	start = clock();
 
-	do
-	{
+	SYSTEMTIME sys;
+	GetLocalTime(&sys);
 
-		k4a_capture_t sensor_capture;
-		k4a_wait_result_t get_capture_result = k4a_device_get_capture(device, &sensor_capture, K4A_WAIT_INFINITE);
+	//path of the output file
+	string parent_directory = "D:/data/kinect/src/";
+	parent_directory = parent_directory.append(to_string(sys.wDay).c_str());
+	if (_access(parent_directory.c_str(), 0) == -1) {
+		//if the file does not exist, create it
+		int flag = _mkdir(parent_directory.c_str());
+		cout << "make successfully" << endl;
+	}
 
-		if (get_capture_result == K4A_WAIT_RESULT_SUCCEEDED)
+	string file_path = parent_directory.append("/frames").append(to_string(sys.wMilliseconds)).append(".json");
+	std::ofstream os(file_path);	
+	
+
+	try {
+		os << prefix;
+		do
 		{
 
-			k4a_wait_result_t queue_capture_result = k4abt_tracker_enqueue_capture(tracker, sensor_capture, K4A_WAIT_INFINITE);
+			k4a_capture_t sensor_capture;
+			k4a_wait_result_t get_capture_result = k4a_device_get_capture(device, &sensor_capture, K4A_WAIT_INFINITE);
 
-			k4a_capture_release(sensor_capture);
-			if (queue_capture_result == K4A_WAIT_RESULT_TIMEOUT)
+			if (get_capture_result == K4A_WAIT_RESULT_SUCCEEDED)
 			{
-				// It should never hit timeout when K4A_WAIT_INFINITE is set.
-				printf("Error! Add capture to tracker process queue timeout!\n");
-				break;
-			}
-			else if (queue_capture_result == K4A_WAIT_RESULT_FAILED)
-			{
-				printf("Error! Add capture to tracker process queue failed!\n");
-				break;
-			}
 
-			k4abt_frame_t body_frame = NULL;
-			k4a_wait_result_t pop_frame_result = k4abt_tracker_pop_result(tracker, &body_frame, K4A_WAIT_INFINITE);
-			if (pop_frame_result == K4A_WAIT_RESULT_SUCCEEDED)
-			{
-				uint32_t num_bodies = k4abt_frame_get_num_bodies(body_frame);
-				if (num_bodies == 0) {
-					continue;
-				}
-				frame_count++;
-				msg += "{";
+				k4a_wait_result_t queue_capture_result = k4abt_tracker_enqueue_capture(tracker, sensor_capture, K4A_WAIT_INFINITE);
 
-				for (uint32_t i = 0; i < num_bodies; i++)
+				k4a_capture_release(sensor_capture);
+				if (queue_capture_result == K4A_WAIT_RESULT_TIMEOUT)
 				{
-					if (i > 0) {
-						break;
+					// It should never hit timeout when K4A_WAIT_INFINITE is set.
+					printf("Error! Add capture to tracker process queue timeout!\n");
+					break;
+				}
+				else if (queue_capture_result == K4A_WAIT_RESULT_FAILED)
+				{
+					printf("Error! Add capture to tracker process queue failed!\n");
+					break;
+				}
+
+				k4abt_frame_t body_frame = NULL;
+				k4a_wait_result_t pop_frame_result = k4abt_tracker_pop_result(tracker, &body_frame, K4A_WAIT_INFINITE);
+				if (pop_frame_result == K4A_WAIT_RESULT_SUCCEEDED)
+				{
+					uint32_t num_bodies = k4abt_frame_get_num_bodies(body_frame);
+					if (num_bodies == 0) {
+						continue;
 					}
-					k4abt_body_t body;
-					VERIFY(k4abt_frame_get_body_skeleton(body_frame, i, &body.skeleton), "Get body from body frame failed!");
-					body.id = k4abt_frame_get_body_id(body_frame, i);
+					frame_count++;
+					msg += "{";
 
-					msg += print_body_information(body);
+					for (uint32_t i = 0; i < num_bodies; i++)
+					{
+						if (i > 0) {
+							break;
+						}
+						k4abt_body_t body;
+						VERIFY(k4abt_frame_get_body_skeleton(body_frame, i, &body.skeleton), "Get body from body frame failed!");
+						body.id = k4abt_frame_get_body_id(body_frame, i);
+
+						msg += print_body_information(body);
+					}
+					char buf[1024];
+					sprintf_s(buf, 1024, "\"Sequence\":\"%d\"}", frame_count);
+					msg += buf;
+					msg += ",";
+
+					k4a_image_t body_index_map = k4abt_frame_get_body_index_map(body_frame);
+					if (body_index_map != NULL)
+					{
+						print_body_index_map_middle_line(body_index_map);
+						k4a_image_release(body_index_map);
+					}
+					else
+					{
+						printf("Error: Fail to generate bodyindex map!\n");
+					}
+
+					k4abt_frame_release(body_frame);
 				}
-				char buf[1024];
-				sprintf_s(buf, 1024, "\"Sequence\":\"%d\"}", frame_count);
-				msg += buf;
-				msg += ",";
-
-				k4a_image_t body_index_map = k4abt_frame_get_body_index_map(body_frame);
-				if (body_index_map != NULL)
+				else if (pop_frame_result == K4A_WAIT_RESULT_TIMEOUT)
 				{
-					print_body_index_map_middle_line(body_index_map);
-					k4a_image_release(body_index_map);
+					//  It should never hit timeout when K4A_WAIT_INFINITE is set.
+					printf("Error! Pop body frame result timeout!\n");
+					break;
 				}
 				else
 				{
-					printf("Error: Fail to generate bodyindex map!\n");
+					printf("Pop body frame result failed!\n");
+					break;
 				}
-
-				k4abt_frame_release(body_frame);
 			}
-			else if (pop_frame_result == K4A_WAIT_RESULT_TIMEOUT)
+			else if (get_capture_result == K4A_WAIT_RESULT_TIMEOUT)
 			{
-				//  It should never hit timeout when K4A_WAIT_INFINITE is set.
-				printf("Error! Pop body frame result timeout!\n");
-				break;
+				// It should never hit time out when K4A_WAIT_INFINITE is set.
+				printf("Error! Get depth frame time out!\n");
+				continue;
 			}
 			else
 			{
-				printf("Pop body frame result failed!\n");
-				break;
+				printf("Get depth capture returned error: %d\n", get_capture_result);
+				continue;
 			}
-		}
-		else if (get_capture_result == K4A_WAIT_RESULT_TIMEOUT)
-		{
-			// It should never hit time out when K4A_WAIT_INFINITE is set.
-			printf("Error! Get depth frame time out!\n");
-			continue;
-		}
-		else
-		{
-			printf("Get depth capture returned error: %d\n", get_capture_result);
-			continue;
-		}
 
-		end = clock();
-		if (end - start >= interval) {
-			msg.erase(msg.end() - 1);
-			msg += "]}";	
-			string file_path = "D:/data/kinect/src/test";
-			file_path.append(to_string(sequence));
-			file_path.append(".json");
-			std::ofstream os(file_path);
-			if (!os) { std::cerr << "Error writing to ..." << std::endl; }
-			else {
-				os << msg;
+			end = clock();
+			if (end - start >= interval) {
+				msg.erase(msg.end() - 1);			
+				if (!os) { std::cerr << "Error writing to ..." << std::endl; }
+				else {
+					os << msg;
+					os << ",";
+					os.flush();
+				}
+				string datagram = prefix.append(msg).append(postfix);
+				//send notification
+				client.post(datagram);
+				start = clock();
+				sequence++;
+				msg.clear();
+				prefix = "{\"list\":[";
 			}
-			//send notification
-			client.post(msg);
-			start = clock();
-			sequence++;
-			msg.clear();
-			msg = "{\"list\":[";
-		}
 
-	} while (true);
+		} while (true);
+	}
+	catch (exception e) {
+		k4abt_tracker_shutdown(tracker);
+		k4abt_tracker_destroy(tracker);
+		k4a_device_stop_cameras(device);
+		k4a_device_close(device);
+		if (os) {
+			os.flush();
+			os.close();
+		}
+	}
 
 	printf("Finished body tracking processing!\n");
-
 	k4abt_tracker_shutdown(tracker);
 	k4abt_tracker_destroy(tracker);
 	k4a_device_stop_cameras(device);
 	k4a_device_close(device);
+	if (os) {
+		os.flush();
+		os.close();
+	}
 
 	return 0;
 }
