@@ -93,7 +93,11 @@ int main()
 	int interval = 10;
 
 	int sequence = 1;
-	string host = "127.0.0.1";
+	//string host = "127.0.0.1";
+	//ip of hololens emulator
+	//string host = "172.31.17.236";
+	//ip of hololens
+	string host = "192.168.1.25";
 	string port = "9005";
 	string url = "/";
 	//WebsocketClient client(host, port, url);
